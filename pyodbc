@@ -95,6 +95,5 @@ def pd_to_sql(df, server, database, schema, tbl_name):
     return None
 
 # Example: 
-#df=pd.read_excel('H:\\Risk Analytics\\Retail Credit Risk\\Projects\\2019\\Wholesale behaviour model\\03_data_investigation\\dealer_sublimits_history\\DealersublimitsHistory.xlsx')
 #pd_to_sql(df=df, server='AUPANALYTICS02', database='wip', schema = 'dbo', tbl_name = 'ws_ds_archived_sublimit_report_24mth')
 
