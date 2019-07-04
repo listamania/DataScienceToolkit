@@ -1,0 +1,94 @@
+import http.client
+import hashlib
+import hmac
+import datetime
+import json
+import pandas as pd
+import time
+import sys
+import io
+from dateutil.relativedelta import *
+
+accKey = #sys.argv[1]
+encKey = #sys.argv[2]
+
+basket_percent = #sys.argv[3]
+basket_number = #sys.argv[4]
+
+def api_call(accKey, encKey,basket): 
+
+    # Prepare the header for the http connection
+
+    timeStamp = datetime.datetime.strftime(
+            datetime.datetime.utcnow(), "%Y-%m-%dT%H:%M:%SZ")
+    payload = bytes(accKey + timeStamp, "utf-8")
+    signature = hmac.new(bytes(encKey, "utf-8"), payload, digestmod=hashlib.sha256)
+    
+
+    payload = ""
+
+    headers = {
+        'AccessKeyId': accKey,
+        'Signature': signature.hexdigest(),
+        'TimeStamp':  timeStamp
+        }
+
+    # Set up the HTTP connection
+
+    conn = http.client.HTTPSConnection("api.economy.com")
+    conn.request("GET", "/data/v1/baskets", payload, headers)
+
+    time.sleep(1)
+
+    res = conn.getresponse()
+    response = res.read()
+
+    # Get the basket ID of the selected basket name
+
+    baskets = pd.DataFrame(json.loads(response.decode("utf-8")))
+    basketId = baskets.loc[baskets["name"]== basket, "basketId"].item()
+
+    # Order the basket for the server to prepare the data
+
+    call = "/data/v1/orders?type=baskets&action=run&id=" + basketId
+    conn.request("POST", call, payload, headers = headers)
+    
+    order = conn.getresponse()
+    response = order.read()
+
+    orderID = json.loads(response.decode("utf-8"))['orderId']
+
+    time.sleep(1)
+    print(f'The order status is {order.status}.')
+
+    # Once the order is placed and processed, make a new get request to retireve the data
+
+    new_call = "/data/v1/orders?type=baskets&id=" +basketId
+    conn.request("GET", new_call, headers = headers)
+    new_order = conn.getresponse()
+    response = new_order.read()
+
+    # decode the excel file and save it to local
+    toread = io.BytesIO()
+    toread.write(response)
+    toread.seek(0)  
+
+    df = pd.read_excel(toread)
+    
+    endofmonth = datetime.datetime.now() + relativedelta(day=31)
+    endofmonthstr = ('').join([str(endofmonth.year).zfill(2), str(endofmonth.month).zfill(2), str(endofmonth.day).zfill(2)])
+    
+    if '%' in basket: 
+        transformat = ' YR%.xlsx'
+    else: 
+        transformat = ' #.xlsx'
+
+    file_name = 'H:\\Risk Analytics\\Retail Credit Risk\\Monthly Report\\IFRS9Provisioning\\ECData\\Moodys\\' + 'Moodys ' + endofmonthstr + transformat
+    df.to_excel(excel_writer = file_name, index = False)
+    print(f'The file {file_name} has been successfully updated!')
+
+    return 0
+
+
+api_call(accKey, encKey,basket_percent)
+api_call(accKey, encKey,basket_number)
