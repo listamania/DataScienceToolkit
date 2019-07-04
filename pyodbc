@@ -1,0 +1,100 @@
+"""
+Purposes of the module: 
+    - Query SQL directly within Python environment through ODBC connection
+    - Retrieve, create, drop tables in SQL server
+
+Use Guidance: 
+    - sql parameters specified in all the modules below should be in textwrap.dedent format
+    - when using the to_pd_parameterised function, in the sql script the argument should be represented as '?', while the list of parameters is expected as function input
+
+"""
+import pyodbc
+import textwrap
+import pandas as pd
+import sqlalchemy
+import urllib
+
+sql = textwrap.dedent("""
+    select batchID, ApplicationId, TransactionID, bureauScoreC1
+    , timeWithBureauC1
+      from DecisionPoint.ProcessingScoringConsumerExternal
+     where batchID = ?
+       and ApplicationId = ?
+""")
+
+
+
+def to_pd(server, database, sql):
+    connection = pyodbc.connect(f'DRIVER={{SQL Server}};SERVER={server}.tfal.com.au;DATABASE={database}')   
+    return pd.read_sql(sql,connection)
+
+
+# Example: 
+# print(to_pd(server='AUPSTGSQL01', database='Staging', sql=sql))
+
+def to_pd_parameterised(server, database, sql, parameters):
+    connection = pyodbc.connect(f'DRIVER={{SQL Server}};SERVER={server}.tfal.com.au;DATABASE={database}') 
+    cursor = connection.cursor()
+    rows = cursor.execute(sql, parameters).fetchall()
+
+    columns = [c[0] for c in cursor.description]
+    df = []
+
+    for row in rows:
+        df.append(dict(zip(columns, row)))
+
+    cursor.close()
+    del cursor
+
+    return pd.DataFrame(df)
+
+# Example: 
+# print(to_pd_parameterised(server='AUPSTGSQL01', database='Staging', sql=sql, parameters = [49, 'AP-262']))
+
+def drop_table(server, database, schema, tbl_name):
+
+    connection = pyodbc.connect(f'DRIVER={{SQL Server}};SERVER={server}.tfal.com.au;DATABASE={database}') 
+    cursor = connection.cursor()
+
+    """
+    From SQL Server 2016 the command below can be performed by DROP TABLE IF EXISTS dbo.tbl
+    """
+    sql = textwrap.dedent("""
+        DECLARE @database varchar(75)
+        DECLARE @schema varchar(75)
+        DECLARE @table varchar(75)
+
+        SET @database = ?
+        SET @schema = ?
+        SET @table = ?
+
+        IF EXISTS (SELECT * FROM wip.sys.tables
+                    WHERE name = @table) 
+        BEGIN
+        EXEC('Drop table ' +@database+'.' + @schema+'.' + @table)
+        END
+
+        """)
+    cursor.execute(sql, [database, schema, tbl_name])
+    cursor.close()
+    del cursor
+
+    return None
+
+# Example: 
+# drop_table(server='AUPANALYTICS02', database='WIP', schema = 'DBO', tbl_name = 'wsale_DealersublimitsHistory')
+
+def pd_to_sql(df, server, database, schema, tbl_name):
+
+    drop_table(server=server, database=database, schema=schema, tbl_name=tbl_name)
+
+    params = urllib.parse.quote_plus(f'DRIVER={{SQL Server}};SERVER={server}.tfal.com.au;DATABASE={database};')
+    engine = sqlalchemy.create_engine("mssql+pyodbc:///?odbc_connect=%s" % params)
+    df.to_sql(name=tbl_name, schema=schema,index=False, con=engine , if_exists='replace')
+
+    return None
+
+# Example: 
+#df=pd.read_excel('H:\\Risk Analytics\\Retail Credit Risk\\Projects\\2019\\Wholesale behaviour model\\03_data_investigation\\dealer_sublimits_history\\DealersublimitsHistory.xlsx')
+#pd_to_sql(df=df, server='AUPANALYTICS02', database='wip', schema = 'dbo', tbl_name = 'ws_ds_archived_sublimit_report_24mth')
+
