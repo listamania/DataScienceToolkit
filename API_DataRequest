@@ -15,6 +15,8 @@ encKey = #sys.argv[2]
 basket_percent = #sys.argv[3]
 basket_number = #sys.argv[4]
 
+path = #sys.argv[5]
+
 def api_call(accKey, encKey,basket): 
 
     # Prepare the header for the http connection
@@ -83,7 +85,7 @@ def api_call(accKey, encKey,basket):
     else: 
         transformat = ' #.xlsx'
 
-    file_name = 'H:\\Risk Analytics\\Retail Credit Risk\\Monthly Report\\IFRS9Provisioning\\ECData\\Moodys\\' + 'Moodys ' + endofmonthstr + transformat
+    file_name = path + 'Moodys ' + endofmonthstr + transformat
     df.to_excel(excel_writer = file_name, index = False)
     print(f'The file {file_name} has been successfully updated!')
 
