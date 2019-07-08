@@ -1,2 +1,3 @@
-# Python_DS
-Practical Python Tips for Data Science
+# Data Science Tookkit
+
+Common data science tools for fast prototyping.
